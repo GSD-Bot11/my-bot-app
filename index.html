@@ -6,69 +6,83 @@
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         body { font-family: sans-serif; background: var(--tg-theme-bg-color); color: var(--tg-theme-text-color); padding: 15px; }
-        .step { margin-bottom: 20px; border-bottom: 1px solid var(--tg-theme-hint-color); padding-bottom: 15px; }
-        select, input { width: 100%; padding: 10px; margin-top: 5px; border-radius: 8px; border: 1px solid var(--tg-theme-hint-color); background: var(--tg-theme-secondary-bg-color); color: var(--tg-theme-text-color); }
-        .main-button { background: var(--tg-theme-button-color); color: var(--tg-theme-button-text-color); border: none; width: 100%; padding: 15px; border-radius: 10px; font-weight: bold; margin-top: 20px; }
+        .service-card { 
+            background: var(--tg-theme-secondary-bg-color); border-radius: 12px; 
+            padding: 15px; margin-bottom: 10px; border: 1px solid var(--tg-theme-hint-color);
+        }
+        .service-header { display: flex; justify-content: space-between; align-items: center; }
+        .pink-btn { 
+            background: #e91e63; color: white; border: none; 
+            padding: 8px 15px; border-radius: 8px; font-weight: bold; cursor: pointer;
+        }
+        .booking-form { display: none; margin-top: 15px; border-top: 1px solid var(--tg-theme-hint-color); padding-top: 10px; }
+        input, select { 
+            width: 100%; padding: 10px; margin: 5px 0; border-radius: 8px; 
+            background: var(--tg-theme-bg-color); color: var(--tg-theme-text-color); border: 1px solid var(--tg-theme-hint-color);
+        }
+        .confirm-btn { 
+            background: var(--tg-theme-button-color); color: var(--tg-theme-button-text-color); 
+            width: 100%; border: none; padding: 12px; border-radius: 8px; margin-top: 10px; font-weight: bold;
+        }
     </style>
 </head>
 <body>
-    <div class="step">
-        <label>Выберите услугу:</label>
-        <select id="service-select"></select>
-    </div>
-
-    <div class="step">
-        <label>Выберите дату:</label>
-        <input type="date" id="date-input">
-    </div>
-
-    <div class="step">
-        <label>Выберите время:</label>
-        <select id="time-select">
-            <option value="09:00">09:00</option>
-            <option value="12:00">12:00</option>
-            <option value="15:00">15:00</option>
-            <option value="18:00">18:00</option>
-        </select>
-    </div>
-
-    <button class="main-button" onclick="confirmBooking()">Записаться</button>
+    <h3 style="text-align: center;">Наши услуги</h3>
+    <div id="services-container"></div>
 
     <script>
         let tg = window.Telegram.WebApp;
         tg.expand();
 
-        // Загружаем услуги из URL (как мы делали раньше)
         const urlParams = new URLSearchParams(window.location.search);
-        const rawData = urlParams.get('data');
-        const select = document.getElementById('service-select');
+        const services = JSON.parse(decodeURIComponent(urlParams.get('data') || '[]'));
+        const container = document.getElementById('services-container');
 
-        if (rawData) {
-            const services = JSON.parse(decodeURIComponent(rawData));
-            services.forEach(s => {
-                let opt = document.createElement('option');
-                opt.value = s.n;
-                opt.innerHTML = `${s.n} (${s.p})`;
-                select.appendChild(opt);
-            });
+        services.forEach((s, index) => {
+            const card = document.createElement('div');
+            card.className = 'service-card';
+            card.innerHTML = `
+                <div class="service-header">
+                    <div><b>${s.n}</b><br><small>${s.p}</small></div>
+                    <button class="pink-btn" onclick="showForm(${index})">Выбрать</button>
+                </div>
+                <div id="form-${index}" class="booking-form">
+                    <label>Дата:</label>
+                    <input type="date" id="date-${index}">
+                    <label>Время:</label>
+                    <select id="time-${index}">
+                        <option value="09:00">09:00</option>
+                        <option value="12:00">12:00</option>
+                        <option value="15:00">15:00</option>
+                        <option value="18:00">18:00</option>
+                    </select>
+                    <button class="confirm-btn" onclick="sendAllData('${s.n}', ${index})">Подтвердить запись</button>
+                </div>
+            `;
+            container.appendChild(card);
+        });
+
+        function showForm(index) {
+            // Скрываем все открытые формы
+            document.querySelectorAll('.booking-form').forEach(f => f.style.display = 'none');
+            // Показываем нужную
+            document.getElementById(`form-${index}`).style.display = 'block';
         }
 
-        function confirmBooking() {
-            const service = document.getElementById('service-select').value;
-            const date = document.getElementById('date-input').value;
-            const time = document.getElementById('time-select').value;
+        function sendAllData(serviceName, index) {
+            const date = document.getElementById(`date-${index}`).value;
+            const time = document.getElementById(`time-${index}`).value;
 
             if (!date) {
-                alert("Пожалуйста, выберите дату");
+                tg.showAlert("Пожалуйста, выберите дату!");
                 return;
             }
 
             const result = {
-                service: service,
+                service: serviceName,
                 date: date,
                 time: time
             };
-
             tg.sendData(JSON.stringify(result));
         }
     </script>
