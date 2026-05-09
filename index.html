@@ -6,60 +6,70 @@
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         body { font-family: sans-serif; background: var(--tg-theme-bg-color); color: var(--tg-theme-text-color); padding: 15px; }
-        .service-item { 
-            background: var(--tg-theme-secondary-bg-color); 
-            border-radius: 10px; padding: 15px; margin-bottom: 10px; 
-            display: flex; justify-content: space-between; align-items: center;
-            border: 1px solid var(--tg-theme-hint-color);
-        }
-        button { 
-            background: var(--tg-theme-button-color); color: var(--tg-theme-button-text-color); 
-            border: none; padding: 10px 15px; border-radius: 8px; font-weight: bold; 
-        }
+        .step { margin-bottom: 20px; border-bottom: 1px solid var(--tg-theme-hint-color); padding-bottom: 15px; }
+        select, input { width: 100%; padding: 10px; margin-top: 5px; border-radius: 8px; border: 1px solid var(--tg-theme-hint-color); background: var(--tg-theme-secondary-bg-color); color: var(--tg-theme-text-color); }
+        .main-button { background: var(--tg-theme-button-color); color: var(--tg-theme-button-text-color); border: none; width: 100%; padding: 15px; border-radius: 10px; font-weight: bold; margin-top: 20px; }
     </style>
 </head>
 <body>
-    <h3 style="text-align: center;">Выберите услугу</h3>
-    <div id="services-list">
-        <p style="text-align: center;">Загрузка услуг...</p>
+    <div class="step">
+        <label>Выберите услугу:</label>
+        <select id="service-select"></select>
     </div>
+
+    <div class="step">
+        <label>Выберите дату:</label>
+        <input type="date" id="date-input">
+    </div>
+
+    <div class="step">
+        <label>Выберите время:</label>
+        <select id="time-select">
+            <option value="09:00">09:00</option>
+            <option value="12:00">12:00</option>
+            <option value="15:00">15:00</option>
+            <option value="18:00">18:00</option>
+        </select>
+    </div>
+
+    <button class="main-button" onclick="confirmBooking()">Записаться</button>
 
     <script>
         let tg = window.Telegram.WebApp;
         tg.expand();
 
-        // 1. Получаем данные из URL
+        // Загружаем услуги из URL (как мы делали раньше)
         const urlParams = new URLSearchParams(window.location.search);
         const rawData = urlParams.get('data');
-        const container = document.getElementById('services-list');
+        const select = document.getElementById('service-select');
 
         if (rawData) {
-            try {
-                const services = JSON.parse(decodeURIComponent(rawData));
-                container.innerHTML = ''; // Очищаем текст загрузки
-
-                // 2. Создаем кнопки для каждой услуги из БД
-                services.forEach(s => {
-                    const div = document.createElement('div');
-                    div.className = 'service-item';
-                    div.innerHTML = `
-                        <div>
-                            <b>${s.n}</b><br>
-                            <small>${s.p}</small>
-                        </div>
-                        <button onclick="selectService('${s.n}')">Выбрать</button>
-                    `;
-                    container.appendChild(div);
-                });
-            } catch (e) {
-                container.innerHTML = 'Ошибка загрузки данных.';
-            }
-        } else {
-            container.innerHTML = 'Услуги не найдены. Обратитесь к админу.';
+            const services = JSON.parse(decodeURIComponent(rawData));
+            services.forEach(s => {
+                let opt = document.createElement('option');
+                opt.value = s.n;
+                opt.innerHTML = `${s.n} (${s.p})`;
+                select.appendChild(opt);
+            });
         }
 
-        function selectService(name) {
-            tg.sendData(JSON.stringify({service: name}));
+        function confirmBooking() {
+            const service = document.getElementById('service-select').value;
+            const date = document.getElementById('date-input').value;
+            const time = document.getElementById('time-select').value;
+
+            if (!date) {
+                alert("Пожалуйста, выберите дату");
+                return;
+            }
+
+            const result = {
+                service: service,
+                date: date,
+                time: time
+            };
+
+            tg.sendData(JSON.stringify(result));
         }
     </script>
 </body>
