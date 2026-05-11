@@ -125,7 +125,7 @@
     <div id="admin-panel" class="step">
         <h3>Добавить новую услугу</h3>
         <input type="text" id="new-service-name" placeholder="Название (например: Стрижка)">
-        <input type="text" id="new-service-price" placeholder="Цена (например: 1500)">
+        <input type="number" id="new-service-price" placeholder="Цена (например: 1500)">
         <button class="main-btn" onclick="sendNewService()">Добавить услугу</button>
     </div>
 
@@ -134,20 +134,29 @@
         tg.expand();
 
         let booking = { serviceId: null, serviceName: null, date: null, time: null };
-
-        // Парсинг услуг из URL
         const params = new URLSearchParams(window.location.search);
+
+        // --- ЛОГИКА СКРЫТИЯ АДМИНКИ ---
+        const userRole = params.get('role');
+        if (userRole !== 'admin') {
+            const adminTabBtn = document.getElementById('tab-admin');
+            if (adminTabBtn) adminTabBtn.style.display = 'none';
+        }
+
+        // Парсинг услуг
         const rawData = params.get('data');
         if (rawData) {
-            const services = JSON.parse(decodeURIComponent(rawData));
-            const list = document.getElementById('services-list');
-            services.forEach(s => {
-                const card = document.createElement('div');
-                card.className = 'card';
-                card.innerHTML = `<div><b>${s.n}</b><br><small>${s.p}₽</small></div>
-                                  <button class="tab-btn active" style="width:auto" onclick="selectService(${s.id}, '${s.n}')">Выбрать</button>`;
-                list.appendChild(card);
-            });
+            try {
+                const services = JSON.parse(decodeURIComponent(rawData));
+                const list = document.getElementById('services-list');
+                services.forEach(s => {
+                    const card = document.createElement('div');
+                    card.className = 'card';
+                    card.innerHTML = `<div><b>${s.n}</b><br><small>${s.p}₽</small></div>
+                                      <button class="tab-btn active" style="width:auto" onclick="selectService(${s.id}, '${s.n}')">Выбрать</button>`;
+                    list.appendChild(card);
+                });
+            } catch(e) { console.error("Ошибка парсинга услуг", e); }
         }
 
         function showTab(type) {
@@ -173,7 +182,7 @@
             showStep(2);
         }
 
-        // Сетка времени
+        // Время
         const timeGrid = document.getElementById('time-grid');
         ["09:00", "10:00", "11:00", "12:00", "14:00", "15:00", "16:00", "17:00"].forEach(t => {
             const div = document.createElement('div');
@@ -187,18 +196,16 @@
             timeGrid.appendChild(div);
         });
 
-        // ОТПРАВКА ЗАПИСИ
         function sendBooking() {
             booking.date = document.getElementById('date-input').value;
             if(!booking.date || !booking.time) return tg.showAlert("Выберите дату и время!");
             tg.sendData(JSON.stringify(booking));
         }
 
-        // ОТПРАВКА НОВОЙ УСЛУГИ (Админ)
         function sendNewService() {
             const name = document.getElementById('new-service-name').value;
             const price = document.getElementById('new-service-price').value;
-            if(!name || !price) return tg.showAlert("Заполните поля!");
+            if(!name || !price) return tg.showAlert("Заполните все поля!");
             
             tg.sendData(JSON.stringify({
                 action: 'add_service',
