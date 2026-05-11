@@ -2,88 +2,199 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-        body { font-family: sans-serif; background: var(--tg-theme-bg-color); color: var(--tg-theme-text-color); padding: 15px; }
-        .service-card { 
-            background: var(--tg-theme-secondary-bg-color); border-radius: 12px; 
-            padding: 15px; margin-bottom: 10px; border: 1px solid var(--tg-theme-hint-color);
+        :root {
+            --bg: var(--tg-theme-bg-color, #ffffff);
+            --text: var(--tg-theme-text-color, #222222);
+            --hint: var(--tg-theme-hint-color, #999999);
+            --btn: var(--tg-theme-button-color, #e91e63);
+            --btn-text: var(--tg-theme-button-text-color, #ffffff);
+            --secondary: var(--tg-theme-secondary-bg-color, #f4f4f4);
         }
-        .service-header { display: flex; justify-content: space-between; align-items: center; }
-        .pink-btn { 
-            background: #e91e63; color: white; border: none; 
-            padding: 8px 15px; border-radius: 8px; font-weight: bold; cursor: pointer;
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 15px;
+            overflow-x: hidden;
         }
-        .booking-form { display: none; margin-top: 15px; border-top: 1px solid var(--tg-theme-hint-color); padding-top: 10px; }
-        input, select { 
-            width: 100%; padding: 10px; margin: 5px 0; border-radius: 8px; 
-            background: var(--tg-theme-bg-color); color: var(--tg-theme-text-color); border: 1px solid var(--tg-theme-hint-color);
+
+        h3 { text-align: center; margin-bottom: 20px; }
+
+        .step { display: none; animation: fadeIn 0.3s ease; }
+        .step.active { display: block; }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Карточки услуг */
+        .card {
+            background: var(--secondary);
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border: 1px solid rgba(0,0,0,0.05);
         }
-        .confirm-btn { 
-            background: var(--tg-theme-button-color); color: var(--tg-theme-button-text-color); 
-            width: 100%; border: none; padding: 12px; border-radius: 8px; margin-top: 10px; font-weight: bold;
+
+        .pink-btn {
+            background: #e91e63;
+            color: white;
+            border: none;
+            padding: 10px 18px;
+            border-radius: 10px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        /* Поля ввода и сетка времени */
+        input[type="date"] {
+            width: 100%;
+            padding: 12px;
+            border-radius: 10px;
+            border: 1px solid var(--hint);
+            background: var(--secondary);
+            color: var(--text);
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+
+        .time-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .time-slot {
+            background: var(--secondary);
+            padding: 12px;
+            text-align: center;
+            border-radius: 10px;
+            font-weight: 500;
+            border: 2px solid transparent;
+        }
+
+        .time-slot.selected {
+            border-color: #e91e63;
+            background: rgba(233, 30, 99, 0.1);
+        }
+
+        .main-btn {
+            background: var(--btn);
+            color: var(--btn-text);
+            width: 100%;
+            border: none;
+            padding: 16px;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: bold;
+            margin-top: 25px;
+        }
+
+        .back-link {
+            display: block;
+            text-align: center;
+            margin-top: 15px;
+            color: #e91e63;
+            text-decoration: none;
+            font-size: 14px;
         }
     </style>
 </head>
 <body>
-    <h3 style="text-align: center;">Наши услуги</h3>
-    <div id="services-container"></div>
+
+    <div id="step1" class="step active">
+        <h3>Выберите услугу</h3>
+        <div id="services-list"></div>
+    </div>
+
+    <div id="step2" class="step">
+        <h3>Выберите дату</h3>
+        <input type="date" id="date-input">
+        <button class="main-btn" onclick="nextStep(3)">Далее</button>
+        <a href="#" class="back-link" onclick="nextStep(1)">Назад к услугам</a>
+    </div>
+
+    <div id="step3" class="step">
+        <h3>Выберите время</h3>
+        <div class="time-grid" id="time-grid"></div>
+        <button class="main-btn" onclick="sendDataToBot()">Подтвердить запись</button>
+        <a href="#" class="back-link" onclick="nextStep(2)">Назад к дате</a>
+    </div>
 
     <script>
         let tg = window.Telegram.WebApp;
         tg.expand();
 
-        const urlParams = new URLSearchParams(window.location.search);
-        const services = JSON.parse(decodeURIComponent(urlParams.get('data') || '[]'));
-        const container = document.getElementById('services-container');
+        let booking = {
+            serviceId: null,
+            serviceName: null,
+            date: null,
+            time: null
+        };
 
-        services.forEach((s, index) => {
-            const card = document.createElement('div');
-            card.className = 'service-card';
-            card.innerHTML = `
-                <div class="service-header">
-                    <div><b>${s.n}</b><br><small>${s.p}</small></div>
-                    <button class="pink-btn" onclick="showForm(${index})">Выбрать</button>
-                </div>
-                <div id="form-${index}" class="booking-form">
-                    <label>Дата:</label>
-                    <input type="date" id="date-${index}">
-                    <label>Время:</label>
-                    <select id="time-${index}">
-                        <option value="09:00">09:00</option>
-                        <option value="12:00">12:00</option>
-                        <option value="15:00">15:00</option>
-                        <option value="18:00">18:00</option>
-                    </select>
-                    <button class="confirm-btn" onclick="sendAllData('${s.n}', ${index})">Подтвердить запись</button>
-                </div>
-            `;
-            container.appendChild(card);
-        });
-
-        function showForm(index) {
-            // Скрываем все открытые формы
-            document.querySelectorAll('.booking-form').forEach(f => f.style.display = 'none');
-            // Показываем нужную
-            document.getElementById(`form-${index}`).style.display = 'block';
+        // 1. Получаем услуги из URL
+        const params = new URLSearchParams(window.location.search);
+        const rawData = params.get('data');
+        
+        if (rawData) {
+            const services = JSON.parse(decodeURIComponent(rawData));
+            const list = document.getElementById('services-list');
+            services.forEach(s => {
+                const card = document.createElement('div');
+                card.className = 'card';
+                card.innerHTML = `
+                    <div><b>${s.n}</b><br><small>${s.p}₽</small></div>
+                    <button class="pink-btn" onclick="selectService(${s.id}, '${s.n}')">Выбрать</button>
+                `;
+                list.appendChild(card);
+            });
         }
 
-        function sendAllData(serviceName, index) {
-            const date = document.getElementById(`date-${index}`).value;
-            const time = document.getElementById(`time-${index}`).value;
+        function selectService(id, name) {
+            booking.serviceId = id;
+            booking.serviceName = name;
+            nextStep(2);
+        }
 
-            if (!date) {
-                tg.showAlert("Пожалуйста, выберите дату!");
+        function nextStep(step) {
+            document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
+            document.getElementById('step' + step).classList.add('active');
+        }
+
+        // 2. Генерация времени
+        const timeGrid = document.getElementById('time-grid');
+        const slots = ["09:00", "10:00", "11:00", "12:00", "14:00", "15:00", "16:00", "17:00"];
+        
+        slots.forEach(slot => {
+            const div = document.createElement('div');
+            div.className = 'time-slot';
+            div.innerText = slot;
+            div.onclick = () => {
+                document.querySelectorAll('.time-slot').forEach(el => el.classList.remove('selected'));
+                div.classList.add('selected');
+                booking.time = slot;
+            };
+            timeGrid.appendChild(div);
+        });
+
+        // 3. Отправка боту
+        function sendDataToBot() {
+            booking.date = document.getElementById('date-input').value;
+            
+            if (!booking.date || !booking.time) {
+                tg.showAlert("Пожалуйста, выберите дату и время!");
                 return;
             }
 
-            const result = {
-                service: serviceName,
-                date: date,
-                time: time
-            };
-            tg.sendData(JSON.stringify(result));
+            // Отправляем объект боту
+            tg.sendData(JSON.stringify(booking));
         }
     </script>
 </body>
